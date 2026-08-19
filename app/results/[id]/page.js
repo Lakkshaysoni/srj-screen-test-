@@ -10,10 +10,11 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  Legend,
 } from 'recharts';
 import { supabase } from '../../../lib/supabase';
 
-const BUCKET_SECONDS = 10;
+const BUCKET_SECONDS = 15;
 
 function formatTime(totalSeconds) {
   const m = Math.floor(totalSeconds / 60);
@@ -82,20 +83,30 @@ export default function ResultsPage() {
     const bucketCount = Math.ceil((maxTime + 1) / BUCKET_SECONDS) || 1;
     const buckets = Array.from({ length: bucketCount }, (_, i) => ({
       label: formatTime(i * BUCKET_SECONDS),
-      pause: 0,
-      seek: 0,
-      tab_blur: 0,
-      buffering: 0,
+      Pause: 0,
+      Seek: 0,
+      'Tab switched away': 0,
+      Buffering: 0,
     }));
+    const keyMap = { pause: 'Pause', seek: 'Seek', tab_blur: 'Tab switched away', buffering: 'Buffering' };
 
     events.forEach((e) => {
       const idx = Math.min(Math.floor(e.video_time_seconds / BUCKET_SECONDS), bucketCount - 1);
       if (idx < 0) return;
-      if (buckets[idx][e.event_type] !== undefined) buckets[idx][e.event_type] += 1;
+      const key = keyMap[e.event_type];
+      if (key) buckets[idx][key] += 1;
     });
 
     return buckets;
   }, [events]);
+
+  const topMoments = useMemo(() => {
+    return [...chartData]
+      .map((b) => ({ label: b.label, total: b.Pause + b.Seek + b['Tab switched away'] + b.Buffering }))
+      .filter((b) => b.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 3);
+  }, [chartData]);
 
   const finishedCount = sessions.filter((s) => s.ended_at).length;
 
@@ -130,7 +141,7 @@ export default function ResultsPage() {
           ← All videos
         </Link>
       </div>
-      <p style={{ color: '#888', marginBottom: '2rem', fontSize: '0.9rem' }}>
+      <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         {sessions.length} session{sessions.length === 1 ? '' : 's'} · {finishedCount} finished
       </p>
 
@@ -138,6 +149,22 @@ export default function ResultsPage() {
         <p style={{ color: '#999' }}>No one has watched this yet.</p>
       ) : (
         <>
+          {topMoments.length > 0 && (
+            <div
+              style={{
+                background: '#151312',
+                border: '1px solid #332a24',
+                borderRadius: 10,
+                padding: '0.9rem 1.1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.87rem',
+                color: '#e0c0a8',
+              }}
+            >
+              <strong>Most attention lost around:</strong> {topMoments.map((m) => m.label).join(', ')}
+            </div>
+          )}
+
           <section
             style={{
               background: '#111214',
@@ -155,10 +182,10 @@ export default function ResultsPage() {
                 No pause/seek/tab-switch events logged yet.
               </p>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={chartData}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#26272a" />
-                  <XAxis dataKey="label" stroke="#666" fontSize={11} />
+                  <XAxis dataKey="label" stroke="#666" fontSize={11} interval="preserveStartEnd" minTickGap={24} />
                   <YAxis stroke="#666" fontSize={11} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
@@ -169,10 +196,11 @@ export default function ResultsPage() {
                     }}
                     labelStyle={{ color: '#ccc' }}
                   />
-                  <Bar dataKey="pause" stackId="a" fill="#d97757" name="Pause" />
-                  <Bar dataKey="seek" stackId="a" fill="#e8b34a" name="Seek" />
-                  <Bar dataKey="tab_blur" stackId="a" fill="#e2534a" name="Tab switched away" />
-                  <Bar dataKey="buffering" stackId="a" fill="#555" name="Buffering" />
+                  <Legend wrapperStyle={{ fontSize: 12, color: '#aaa' }} />
+                  <Bar dataKey="Pause" stackId="a" fill="#d97757" />
+                  <Bar dataKey="Seek" stackId="a" fill="#e8b34a" />
+                  <Bar dataKey="Tab switched away" stackId="a" fill="#e2534a" />
+                  <Bar dataKey="Buffering" stackId="a" fill="#555" />
                 </ComposedChart>
               </ResponsiveContainer>
             )}

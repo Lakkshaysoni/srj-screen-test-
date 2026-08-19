@@ -1,12 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Link2, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import './globals.css';
 
 export default function Home() {
   const [videos, setVideos] = useState(null);
   const [error, setError] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
     supabase
@@ -18,6 +20,14 @@ export default function Home() {
         setVideos(data || []);
       });
   }, []);
+
+  function copyLink(v) {
+    const url = `${window.location.origin}/watch/${v.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(v.id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  }
 
   return (
     <main style={{ maxWidth: 720, margin: '3rem auto', padding: '0 1.5rem' }}>
@@ -68,6 +78,32 @@ export default function Home() {
               >
                 {v.title || v.storage_key}
               </Link>
+              <button
+                onClick={() => copyLink(v)}
+                style={{
+                  padding: '0 1rem',
+                  background: '#1a1a1a',
+                  border: '1px solid #333',
+                  borderRadius: 8,
+                  color: copiedId === v.id ? '#7bc47f' : '#ccc',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {copiedId === v.id ? (
+                  <>
+                    <Check size={15} /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Link2 size={15} /> Copy link
+                  </>
+                )}
+              </button>
               <Link
                 href={`/results/${v.id}`}
                 style={{
