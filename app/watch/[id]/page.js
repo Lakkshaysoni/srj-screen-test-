@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 
 export default function WatchPage() {
@@ -85,44 +86,107 @@ export default function WatchPage() {
   }, []);
 
   return (
-    <main style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
-      <h1 style={{ fontSize: '1.3rem', fontWeight: 500, marginBottom: '1rem' }}>
-        {video ? video.title : 'Loading...'}
-      </h1>
-      {error && <p style={{ color: '#e55' }}>{error}</p>}
-      {playbackUrl && (
-        <video
-          ref={videoRef}
-          src={playbackUrl}
-          controls
-          style={{ width: '100%', borderRadius: 8, background: '#000' }}
-          onPlay={() => logEvent('play')}
-          onPause={() => logEvent('pause')}
-          onSeeking={(e) => {
-            seekFromRef.current = e.currentTarget.dataset.lastTime
-              ? parseFloat(e.currentTarget.dataset.lastTime)
-              : null;
+    <main style={{ maxWidth: 900, margin: '2.5rem auto', padding: '0 1.5rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: '1rem',
+        }}
+      >
+        <h1 style={{ fontSize: '1.3rem', fontWeight: 500 }}>{video ? video.title : 'Loading...'}</h1>
+        <Link href="/" style={{ color: '#777', fontSize: '0.85rem', textDecoration: 'none' }}>
+          ← All videos
+        </Link>
+      </div>
+
+      {error && (
+        <div
+          style={{
+            padding: '2rem',
+            background: '#1a1010',
+            border: '1px solid #442222',
+            borderRadius: 10,
+            color: '#e88',
           }}
-          onSeeked={(e) => {
-            logEvent('seek', { from: seekFromRef.current, to: e.currentTarget.currentTime });
-          }}
-          onTimeUpdate={(e) => {
-            e.currentTarget.dataset.lastTime = e.currentTarget.currentTime;
-          }}
-          onWaiting={() => logEvent('buffering')}
-          onEnded={() => {
-            logEvent('ended');
-            const sessionId = sessionIdRef.current;
-            if (sessionId) {
-              supabase
-                .from('sessions')
-                .update({ ended_at: new Date().toISOString() })
-                .eq('id', sessionId)
-                .then(() => {});
-            }
-          }}
-        />
+        >
+          {error}
+        </div>
       )}
+
+      {!error && (
+        <div
+          style={{
+            background: '#111214',
+            border: '1px solid #26272a',
+            borderRadius: 12,
+            padding: playbackUrl ? 8 : 0,
+            overflow: 'hidden',
+          }}
+        >
+          {playbackUrl ? (
+            <video
+              ref={videoRef}
+              src={playbackUrl}
+              controls
+              style={{ width: '100%', display: 'block', borderRadius: 6, background: '#000' }}
+              onPlay={() => logEvent('play')}
+              onPause={() => logEvent('pause')}
+              onSeeking={(e) => {
+                seekFromRef.current = e.currentTarget.dataset.lastTime
+                  ? parseFloat(e.currentTarget.dataset.lastTime)
+                  : null;
+              }}
+              onSeeked={(e) => {
+                logEvent('seek', { from: seekFromRef.current, to: e.currentTarget.currentTime });
+              }}
+              onTimeUpdate={(e) => {
+                e.currentTarget.dataset.lastTime = e.currentTarget.currentTime;
+              }}
+              onWaiting={() => logEvent('buffering')}
+              onEnded={() => {
+                logEvent('ended');
+                const sessionId = sessionIdRef.current;
+                if (sessionId) {
+                  supabase
+                    .from('sessions')
+                    .update({ ended_at: new Date().toISOString() })
+                    .eq('id', sessionId)
+                    .then(() => {});
+                }
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                aspectRatio: '16 / 9',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6rem',
+                color: '#555',
+                fontSize: '0.9rem',
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: '2px solid #2a2a2a',
+                  borderTopColor: '#888',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
+              <span>Loading video…</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 
@@ -10,11 +10,13 @@ export default function UploadPage() {
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const xhrRef = useRef(null);
 
   async function handleUpload(e) {
     e.preventDefault();
     if (!file) return;
     setBusy(true);
+    setProgress(0);
     setStatus('Requesting upload slot...');
 
     try {
@@ -29,13 +31,16 @@ export default function UploadPage() {
       setStatus('Uploading...');
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        xhrRef.current = xhr;
         xhr.open('PUT', uploadUrl);
         xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
         xhr.upload.onprogress = (ev) => {
           if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
         };
-        xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error('Upload failed')));
-        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.onload = () =>
+          xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (status ${xhr.status})`));
+        xhr.onerror = () => reject(new Error('Upload failed — check R2 CORS settings'));
+        xhr.onabort = () => reject(new Error('CANCELLED'));
         xhr.send(file);
       });
 
@@ -50,9 +55,19 @@ export default function UploadPage() {
 
       router.push(`/watch/${data.id}`);
     } catch (err) {
-      setStatus(err.message);
+      if (err.message === 'CANCELLED') {
+        setStatus('Upload cancelled');
+      } else {
+        setStatus(err.message);
+      }
       setBusy(false);
+      setProgress(0);
+      xhrRef.current = null;
     }
+  }
+
+  function handleCancel() {
+    if (xhrRef.current) xhrRef.current.abort();
   }
 
   return (
@@ -66,6 +81,7 @@ export default function UploadPage() {
           placeholder="Title (optional)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          disabled={busy}
           style={{
             padding: '0.6rem',
             background: '#1a1a1a',
@@ -78,28 +94,61 @@ export default function UploadPage() {
           type="file"
           accept="video/*"
           onChange={(e) => setFile(e.target.files[0])}
+          disabled={busy}
           style={{ color: '#ccc' }}
         />
-        <button
-          type="submit"
-          disabled={!file || busy}
-          style={{
-            padding: '0.7rem',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: 6,
-            fontWeight: 500,
-            cursor: file && !busy ? 'pointer' : 'not-allowed',
-            opacity: file && !busy ? 1 : 0.5,
-          }}
-        >
-          Upload
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="submit"
+            disabled={!file || busy}
+            style={{
+              flex: 1,
+              padding: '0.7rem',
+              background: '#fff',
+              color: '#000',
+              border: 'none',
+              borderRadius: 6,
+              fontWeight: 500,
+              cursor: file && !busy ? 'pointer' : 'not-allowed',
+              opacity: file && !busy ? 1 : 0.5,
+            }}
+          >
+            Upload
+          </button>
+          {busy && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              style={{
+                padding: '0.7rem 1rem',
+                background: 'transparent',
+                color: '#e77',
+                border: '1px solid #e77',
+                borderRadius: 6,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
         {status && (
           <p style={{ color: '#999', fontSize: '0.9rem' }}>
             {status} {progress > 0 && progress < 100 ? `(${progress}%)` : ''}
           </p>
+        )}
+        {busy && progress > 0 && (
+          <div style={{ height: 4, background: '#222', borderRadius: 2, overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${progress}%`,
+                background: '#fff',
+                transition: 'width 0.2s',
+              }}
+            />
+          </div>
         )}
       </form>
     </main>
